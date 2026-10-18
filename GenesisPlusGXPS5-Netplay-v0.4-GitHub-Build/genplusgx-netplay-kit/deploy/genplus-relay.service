@@ -1,0 +1,21 @@
+[Unit]
+Description=Genesis Plus GX PS5 Netplay GN1 TLS relay (pre-alpha)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=genplus-relay
+Group=genplus-relay
+ExecStart=/usr/bin/python3 /opt/genplus-relay/relay.py --host 0.0.0.0 --port 43377 --tls-cert /etc/genplus-relay/fullchain.pem --tls-key /etc/genplus-relay/privkey.pem
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+MemoryMax=128M
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

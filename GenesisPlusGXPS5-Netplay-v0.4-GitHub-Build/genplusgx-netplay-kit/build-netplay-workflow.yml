@@ -1,0 +1,79 @@
+name: Build Genesis Plus GX PS5 - Netplay Prototype
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Test and build netplay ELF
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout our build kit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout the pinned Genesis Plus GX PS5 source
+        uses: actions/checkout@v4
+        with:
+          repository: MisterTemaki/genplusgxPS5
+          ref: 154212f72704aa99989153626c1658783f35669f
+          path: upstream
+          persist-credentials: false
+
+      - name: Install prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bash clang-18 lld-18 g++ python3 unzip wget curl
+
+      - name: Install the PS5 Payload SDK v0.44 binary
+        run: |
+          curl -fL --retry 3 -o /tmp/ps5-payload-sdk.zip \
+            https://github.com/ps5-payload-dev/sdk/releases/download/v0.44/ps5-payload-sdk.zip
+          sudo unzip -q -o /tmp/ps5-payload-sdk.zip -d /opt
+          test -x /opt/ps5-payload-sdk/bin/prospero-clang
+
+      - name: Apply netplay frontend and TLS transport
+        run: python3 genplusgx-netplay-kit/apply_to_upstream.py upstream
+
+      - name: Compile C++ protocol client and run relay tests
+        run: |
+          cd genplusgx-netplay-kit
+          g++ -std=c++17 -Wall -Wextra -Werror -Inetplay netplay/fe_netplay.cpp tests/netplay_client_smoke.cpp -o tests/netplay_client_smoke
+          python3 -m unittest discover -s tests -p 'test_netplay.py' -v
+
+      - name: Compile host emulator (including native TLS transport)
+        env:
+          PS5_PAYLOAD_SDK: /opt/ps5-payload-sdk
+        run: make -C upstream/ps5 host -j2
+
+      - name: Build native PS5 app and installer ELF
+        env:
+          PS5_PAYLOAD_SDK: /opt/ps5-payload-sdk
+          LLD: ld.lld-18
+        run: |
+          make -C upstream/ps5 ps5 -j2
+          test -s upstream/ps5/build/ps5/GenesisPlusGXPS5.elf
+
+      - name: Upload experimental ELF
+        uses: actions/upload-artifact@v4
+        with:
+          name: GenesisPlusGXPS5-Netplay-GN1-0.4-Auto-Relay-P2P-prealpha-ELF
+          path: upstream/ps5/build/ps5/GenesisPlusGXPS5.elf
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload compiler logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: GenesisPlusGXPS5-Netplay-GN1-0.4-failure-log
+          path: |
+            upstream/ps5/build/host/
+            upstream/ps5/build/ps5/
+          if-no-files-found: ignore
+          retention-days: 7
