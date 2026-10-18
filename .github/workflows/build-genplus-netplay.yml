@@ -2,9 +2,17 @@ name: Build Genesis Plus GX PS5 - Netplay Prototype
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-genplus-netplay.yml'
+      - 'GenesisPlusGXPS5-Netplay-v0.4-GitHub-Build/genplusgx-netplay-kit/**'
 
 permissions:
   contents: read
+
+env:
+  KIT_DIR: GenesisPlusGXPS5-Netplay-v0.4-GitHub-Build/genplusgx-netplay-kit
 
 jobs:
   build:
@@ -12,12 +20,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
-      - name: Checkout our build kit
+      - name: Checkout netplay project
         uses: actions/checkout@v4
         with:
           persist-credentials: false
 
-      - name: Checkout the pinned Genesis Plus GX PS5 source
+      - name: Checkout pinned upstream emulator
         uses: actions/checkout@v4
         with:
           repository: MisterTemaki/genplusgxPS5
@@ -25,29 +33,32 @@ jobs:
           path: upstream
           persist-credentials: false
 
-      - name: Verify netplay source was uploaded
-        shell: bash
+      - name: Verify uploaded project layout
         run: |
-          test -f genplusgx-netplay-kit/apply_to_upstream.py || { echo "::error::Netplay kit missing. Commit the files in genplusgx-netplay-kit/ first."; exit 1; }
+          test -f "$KIT_DIR/apply_to_upstream.py" || { echo "::error::Missing source integration script at $KIT_DIR"; exit 1; }
+          test -f "$KIT_DIR/netplay/fe_netplay.cpp"
+          test -f "$KIT_DIR/netplay/fe_netplay_tls.cpp"
+          test -f "$KIT_DIR/tests/test_netplay.py"
+          test -f upstream/ps5/Makefile
 
-      - name: Install prerequisites
+      - name: Install host and PS5 build prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y bash clang-18 lld-18 g++ python3 unzip wget curl
+          sudo apt-get install -y clang-18 lld-18 g++ make python3 unzip wget curl zip zlib1g-dev
 
-      - name: Install the PS5 Payload SDK v0.44 binary
+      - name: Install PS5 Payload SDK v0.44
         run: |
           curl -fL --retry 3 -o /tmp/ps5-payload-sdk.zip \
             https://github.com/ps5-payload-dev/sdk/releases/download/v0.44/ps5-payload-sdk.zip
           sudo unzip -q -o /tmp/ps5-payload-sdk.zip -d /opt
-          test -x /opt/ps5-payload-sdk/bin/prospero-clang
+          test -x /opt/ps5-payload-sdk/bin/prospero-clang || { echo "::error::PS5 SDK layout differs from expected /opt/ps5-payload-sdk"; exit 1; }
 
-      - name: Apply netplay frontend and TLS transport
-        run: python3 genplusgx-netplay-kit/apply_to_upstream.py upstream
+      - name: Apply GN1 netplay frontend modifications
+        run: python3 "$KIT_DIR/apply_to_upstream.py" upstream
 
-      - name: Compile C++ protocol client and run relay tests
+      - name: Compile transport and run network tests
         run: |
-          cd genplusgx-netplay-kit
+          cd "$KIT_DIR"
           g++ -std=c++17 -Wall -Wextra -Werror -Inetplay netplay/fe_netplay.cpp tests/netplay_client_smoke.cpp -o tests/netplay_client_smoke
           python3 -m unittest discover -s tests -p 'test_netplay.py' -v
 
@@ -56,7 +67,7 @@ jobs:
           PS5_PAYLOAD_SDK: /opt/ps5-payload-sdk
         run: make -C upstream/ps5 host -j2
 
-      - name: Build native PS5 ELF
+      - name: Build native PS5 installer ELF
         env:
           PS5_PAYLOAD_SDK: /opt/ps5-payload-sdk
           LLD: ld.lld-18
@@ -67,7 +78,7 @@ jobs:
       - name: Upload experimental ELF
         uses: actions/upload-artifact@v4
         with:
-          name: GenesisPlusGXPS5-Netplay-GN1-0.4-Auto-Relay-P2P-prealpha-ELF
+          name: GenesisPlusGXPS5-Netplay-v0.4-Auto-P2P-Relay-prealpha-ELF
           path: upstream/ps5/build/ps5/GenesisPlusGXPS5.elf
           if-no-files-found: error
           retention-days: 14
