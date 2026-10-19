@@ -32,7 +32,7 @@ for f in ('fe_netplay.cpp','fe_netplay.h','fe_netplay_tls.cpp','fe_netplay_tls.h
     shutil.copyfile(KIT/'netplay'/f,PS5/'frontend'/f)
 
 patch('ps5/Makefile', [
-    ('VERSION ?= 1.7','VERSION ?= 1.7-netplay0.4'),
+    ('VERSION ?= 1.7','VERSION ?= 1.7-netplay0.5'),
     ('TITLE_ID ?= PPSA99921','TITLE_ID ?= PPSA99931'),
     ('frontend/fe_emu.cpp frontend/fe_menu.cpp frontend/fe_settings.cpp frontend/fe_text.cpp',
      'frontend/fe_emu.cpp frontend/fe_netplay.cpp frontend/fe_netplay_tls.cpp frontend/fe_menu.cpp frontend/fe_settings.cpp frontend/fe_text.cpp'),
@@ -96,9 +96,9 @@ patch('ps5/frontend/fe_menu.cpp', [
      '\t\tcase H_NETPLAY: return {"NETPLAY (TEST BUILD)", "", true, true};\n'
      '\t\tcase S_NETPLAY_MODE: return {"Online play", c.netplay_mode == 1 ? "Host" : c.netplay_mode == 2 ? "Join" : "Off"};\n'
      '\t\tcase S_NETPLAY_CONNECTION_TYPE: return {"Connection type", c.netplay_connection_type == 0 ? "Relay (TLS)" : c.netplay_connection_type == 1 ? "Direct P2P (test)" : "Automatic (test)"};\n'
-     '\t\tcase S_NETPLAY_ROOM: return {"Room code (Cross to edit)", NetplayPreview(c.netplay_room)};\n'
-     '\t\tcase S_NETPLAY_RELAY: return {"Relay host (Cross to edit)", NetplayPreview(c.netplay_host), c.netplay_connection_type != 1};\n'
-     '\t\tcase S_NETPLAY_DIRECT_HOST: return {"Direct host (Cross to edit)", NetplayPreview(c.netplay_direct_host), c.netplay_connection_type != 0};\n'
+     '\t\tcase S_NETPLAY_ROOM: return {"Edit room code (X)", NetplayPreview(c.netplay_room)};\n'
+     '\t\tcase S_NETPLAY_RELAY: return {"Edit relay IP / hostname (X)", NetplayPreview(c.netplay_host), c.netplay_connection_type != 1};\n'
+     '\t\tcase S_NETPLAY_DIRECT_HOST: return {"Edit direct IP / hostname (X)", NetplayPreview(c.netplay_direct_host), c.netplay_connection_type != 0};\n'
      '\t\tcase S_NETPLAY_DIRECT_PORT: snprintf(buf, sizeof(buf), "%d", c.netplay_direct_port); return {"Direct TCP port", buf, c.netplay_connection_type != 0};\n'
      '\t\tcase H_LIBRARY: return {"LIBRARY", "", true, true};'),
     ('\t\tcase S_COVERS: c.covers_download = !c.covers_download; break;',
@@ -195,7 +195,7 @@ bool EditNetplayField(const char* title, std::string& value, bool room)
 void SettingsScreen(bool over_game)
 {'''),
     ('\t\telse if (sel < S_COUNT && (n.left || n.right || n.ok))\n\t\t\tChangeSetting(sel, n.left ? -1 : 1);',
-     '''        else if (n.ok && (sel == S_NETPLAY_ROOM || sel == S_NETPLAY_RELAY || sel == S_NETPLAY_DIRECT_HOST))
+     '''        else if ((n.ok || n.right) && (sel == S_NETPLAY_ROOM || sel == S_NETPLAY_RELAY || sel == S_NETPLAY_DIRECT_HOST))
         {
             Settings& c = Config();
             std::string& target = sel == S_NETPLAY_ROOM ? c.netplay_room :
