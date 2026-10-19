@@ -4,6 +4,16 @@ Two-player Genesis / Mega Drive netplay prototype layered onto [MisterTemaki/gen
 
 **Build status:** A native PS5 installer ELF successfully compiled in [GitHub Actions run #39173747705](https://github.com/epstivalet/genplusgxPS5-netplay/actions/runs/39173747705). The newer controller-keyboard revision is compiled by subsequent Actions runs. **No successful physical-console netplay test has been reported yet.** A green Actions run proves compilation, not correct multiplayer gameplay.
 
+## Most recent build: 0.5 (PS5 address editor)
+
+The compiled PS5 ELF from [Actions run 39197251541](https://github.com/epstivalet/genplusgxPS5-netplay/actions/runs/39197251541) has been verified to contain \`1.7-netplay0.5\`, the controller keyboard, and the menu text **"Edit direct IP / hostname (X)"** / **"Edit relay IP / hostname (X)"**. Use the artifact from **this** build, not an older 0.4 ELF whose "Host IP (edit .ini over FTP)" row intentionally does not open an editor.
+
+To test: exit the running app, send the new installer ELF to your PS5's payload loader, and open the **Netplay** title from the dashboard again. In **Settings → NETPLAY**, verify the version in the header is \`1.7-netplay0.5\`. Select **Edit direct IP / hostname (X)**, then press Cross or D-pad Right. The on-screen character keyboard should appear. Navigate with D-pad, Cross to select, Circle to erase, and OPTIONS to save.
+
+If the menu still says **Host IP (edit .ini over FTP)**, the older app is running or the installer did not replace \`/data/homebrew/PPSA99931/eboot.bin\`. Check \`/data/genplus-netplay/logs/installer.log\` and \`boot.log\` on that console before retrying. Do **not** delete stock emulator \`PPSA99921\` or its savedata.
+
+**Status:** The ELF compiles in GitHub CI; keyboard functionality has not yet been confirmed in console testing.
+
 ## Supported connection types
 
 | Type | Purpose | Requirements |
