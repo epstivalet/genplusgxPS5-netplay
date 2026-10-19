@@ -40,6 +40,29 @@ python3 -m py_compile "$APP"
 install -d -o root -g gn2 -m 0750 /etc/gn2
 install -d -o root -g gn2 -m 0750 /etc/gn2/tls
 
+# OCI Ubuntu guest images can have iptables REJECT rules even with UFW inactive.
+# Insert only the three GN2 service/ACME allowances ahead of any reject rule.
+# Do not flush rules, change existing SSH allowances, or disable firewalls.
+if command -v iptables >/dev/null 2>&1; then
+  for rule in "tcp 80" "tcp 43380" "udp 43379"; do
+    read -r protocol destport <<< "$rule"
+    if ! iptables -C INPUT -p "$protocol" --dport "$destport" \
+        -m conntrack --ctstate NEW -j ACCEPT 2>/dev/null; then
+      iptables -I INPUT 1 -p "$protocol" --dport "$destport" \
+        -m conntrack --ctstate NEW -j ACCEPT
+    fi
+  done
+  # OCI Ubuntu often includes netfilter-persistent and rules.v4. Preserve its
+  # other rules and save the current ones; do not replace its firewall policy.
+  if [[ -f /etc/iptables/rules.v4 ]] && command -v iptables-save >/dev/null 2>&1; then
+    cp -a /etc/iptables/rules.v4 /etc/iptables/rules.v4.gn2.backup
+    iptables-save > /etc/iptables/rules.v4
+  else
+    echo "WARNING: guest firewall rules may not persist across VM reboot." >&2
+    echo "Check Ubuntu iptables/nftables configuration after reboot." >&2
+  fi
+fi
+
 echo "Checking Let's Encrypt certificate for $DOMAIN."
 echo "DNS must point to this VM, and TCP 80 must be open on the Oracle VCN and guest."
 certbot certonly --standalone --non-interactive --agree-tos --no-eff-email \
@@ -103,5 +126,5 @@ systemctl daemon-reload
 systemctl enable --now gn2-rendezvous.service
 echo "GN2 service installed. Verify: sudo systemctl status gn2-rendezvous.service"
 echo "Logs: sudo journalctl -u gn2-rendezvous -n 60 --no-pager"
-echo "The script does NOT change OCI VCN or guest firewall ingress."
+echo "Guest iptables GN2 allowances installed where supported; OCI VCN ingress must still be configured manually."
 echo "Required: TCP 80 (ACME), TCP 43380 (TLS signaling), UDP 43379 (UDP observation)."
