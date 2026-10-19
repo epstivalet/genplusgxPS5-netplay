@@ -28,14 +28,14 @@ def patch(relative, replacements):
     p.write_text(data)
     print('patched',relative)
 
-for f in ('fe_netplay.cpp','fe_netplay.h','fe_netplay_tls.cpp','fe_netplay_tls.h'):
+for f in ('fe_netplay.cpp','fe_netplay.h','fe_netplay_tls.cpp','fe_netplay_tls.h','fe_p2p_probe.cpp','fe_p2p_probe.h'):
     shutil.copyfile(KIT/'netplay'/f,PS5/'frontend'/f)
 
 patch('ps5/Makefile', [
-    ('VERSION ?= 1.7','VERSION ?= 1.7-netplay0.5'),
+    ('VERSION ?= 1.7','VERSION ?= 1.7-netplay0.6probe'),
     ('TITLE_ID ?= PPSA99921','TITLE_ID ?= PPSA99931'),
     ('frontend/fe_emu.cpp frontend/fe_menu.cpp frontend/fe_settings.cpp frontend/fe_text.cpp',
-     'frontend/fe_emu.cpp frontend/fe_netplay.cpp frontend/fe_netplay_tls.cpp frontend/fe_menu.cpp frontend/fe_settings.cpp frontend/fe_text.cpp'),
+     'frontend/fe_emu.cpp frontend/fe_netplay.cpp frontend/fe_netplay_tls.cpp frontend/fe_p2p_probe.cpp frontend/fe_menu.cpp frontend/fe_settings.cpp frontend/fe_text.cpp'),
 ])
 patch('ps5/Makefile', [
     ('EBOOT_OBJS = build/app/app_crt.o build/app/app_cpp_runtime.o $(PS5_CORE_OBJ) $(PS5_EMU_OBJ) $(PS5_OUT)/helper_data.o',
@@ -45,6 +45,7 @@ patch('ps5/Makefile', [
     ('# ---------------- PS5 ----------------',
      '# Relay uses verified TLS. Direct P2P is plaintext; development LAN/VPN only.\n'
      '%/port/frontend/fe_netplay.o: EXTRA_FLAGS = -DGENPLUS_NETPLAY_TLS\n'
+     '%/port/frontend/fe_p2p_probe.o: EXTRA_FLAGS = -DGENPLUS_NETPLAY_TLS\n'
      '%/port/frontend/fe_netplay_tls.o: EXTRA_FLAGS = $(MBEDTLS_FLAGS) -DCACERT_PEM=\'"$(abspath frontend/data/cacert.pem)"\' \n'
      '# ---------------- PS5 ----------------'),
 ])
@@ -205,6 +206,41 @@ void SettingsScreen(bool over_game)
             if (EditNetplayField(title, target, sel == S_NETPLAY_ROOM))
                 c.Save();
             nav = NavReader(); // reset input repeat after returning from keyboard
+        }
+        else if (sel < S_COUNT && (n.left || n.right || n.ok))
+            ChangeSetting(sel, n.left ? -1 : 1);'''),
+])
+
+
+# GN2 Internet connectivity diagnostic on the PS5 itself, without a companion PC.
+# Never uses plaintext UDP for gameplay; it only confirms direct reachability.
+patch('ps5/frontend/fe_menu.cpp', [
+    ('#include "fe_menu.h"', '#include "fe_menu.h"\n#include "fe_p2p_probe.h"'),
+    ('\tS_NETPLAY_DIRECT_PORT,\n\tS_COUNT',
+     '\tS_NETPLAY_DIRECT_PORT,\n\tS_NETPLAY_PROBE,\n\tS_COUNT'),
+    ('\t\tcase S_NETPLAY_DIRECT_PORT: snprintf(buf, sizeof(buf), "%d", c.netplay_direct_port); return {"Direct TCP port", buf, c.netplay_connection_type != 0};',
+     '\t\tcase S_NETPLAY_DIRECT_PORT: snprintf(buf, sizeof(buf), "%d", c.netplay_direct_port); return {"Direct TCP port", buf, c.netplay_connection_type != 0};\n'
+     '\t\tcase S_NETPLAY_PROBE: return {"Test Internet UDP route (X)", "Diagnostic only"};'),
+    ('        else if (sel < S_COUNT && (n.left || n.right || n.ok))\n            ChangeSetting(sel, n.left ? -1 : 1);',
+     '''        else if (sel == S_NETPLAY_PROBE && n.ok)
+        {
+            const Settings& c = Config();
+            if (over_game) {
+                MessageBox("Netplay route test", "Return to the game library before testing Internet routes.");
+            } else if (c.netplay_host.empty() || c.netplay_host == "127.0.0.1" ||
+                       c.netplay_host == "localhost") {
+                MessageBox("GN2 server not configured",
+                    "Set the Relay host field to your Internet rendezvous DNS hostname. A GN2 server must be deployed.");
+            } else {
+                netplay_probe::Config test;
+                test.host = c.netplay_host;
+                test.role = c.netplay_mode;
+                test.room = c.netplay_room;
+                std::string feedback;
+                const bool ok = netplay_probe::Run(test, feedback);
+                MessageBox(ok ? "UDP peer route reachable" : "UDP peer route unavailable", feedback);
+            }
+            nav = NavReader();
         }
         else if (sel < S_COUNT && (n.left || n.right || n.ok))
             ChangeSetting(sel, n.left ? -1 : 1);'''),
