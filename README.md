@@ -1,3 +1,18 @@
+# Native Internet P2P Development — GN2 0.6
+
+**Branch: feature/native-internet-p2p (EXPERIMENTAL).** The stable console-tested 0.5 UI is preserved on main.
+
+**Verified:** [GN2 build 39212289710](https://github.com/epstivalet/genplusgxPS5-netplay/actions/runs/39212289710) passed **16 automated network tests**, compiled the host application, and produced a **native PS5 installer ELF**. The new compiled code has *not yet been tested on actual PS5 hardware.*
+
+**Added:** A dedicated GN2 rendezvous TLS+UDP service, native PS5 UDP endpoint discovery and direct peer reachability check, and a new **Settings -> NETPLAY -> Test Internet UDP route (X)** menu entry.
+
+**Not yet implemented:** Encrypted direct UDP gameplay, NAT traversal standards/ICE, gameplay reliability, automatic relay fallback for GN2, server deployment, or confirmed two-PS5 Internet play. The probe merely determines whether short UDP messages can reach another console through NAT; it is *not* a functional multiplayer mode.
+
+**No companion PC is needed** to run GN2 on a PS5. A separately hosted (small) DNS/TLS rendezvous server **is** required. It has not been provisioned. Existing direct-TCP GN1 remains restricted to trusted LAN/VPN and must never be publicly port-forwarded.
+
+See [GN2 v0.6 native connectivity guide](docs/gn2-native-probe.md) for server ports (TCP 43380, UDP 43379), room setup, limitations and console test steps.
+
+---
 # Genesis Plus GX PS5 — GN1 Netplay (experimental)
 
 Two-player Genesis / Mega Drive netplay prototype layered onto [MisterTemaki/genplusgxPS5](https://github.com/MisterTemaki/genplusgxPS5).
