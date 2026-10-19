@@ -63,7 +63,7 @@ jobs:
           cd "$KIT_DIR"
           g++ -std=c++17 -Wall -Wextra -Werror -Inetplay netplay/fe_netplay.cpp tests/netplay_client_smoke.cpp -o tests/netplay_client_smoke
           g++ -std=c++17 -Wall -Wextra -Werror -Inetplay netplay/fe_p2p_probe.cpp tests/p2p_probe_smoke.cpp -o tests/p2p_probe_smoke
-          python3 -m unittest discover -s tests -p 'test_netplay.py' -v
+          python3 -m unittest discover -s tests -p 'test_*.py' -v
 
       - name: Compile host emulator
         env:
