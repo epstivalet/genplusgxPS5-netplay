@@ -24,7 +24,7 @@ Open the instance's VNIC -> its subnet -> Security Lists -> attached list -> Add
 
 Leave **43377/TCP** closed for now: the legacy GN1 TLS gameplay relay has **not** been provisioned by this new bootstrap. Keep 43378/TCP and PS5 exploit/helper ports closed. You can apply rate limits or tighter source CIDRs for a controlled two-console test.
 
-OCI ingress security rules and the Linux VM's own firewall are separate. Ensure the Ubuntu guest permits these ports too. If using UFW and it is already active, use `sudo ufw allow 80/tcp`, `sudo ufw allow 43380/tcp`, and `sudo ufw allow 43379/udp`. Do not enable/disable a guest firewall blindly or lock out SSH; some OCI images use iptables independently of UFW.
+OCI ingress security rules and the Linux VM's own firewall are separate. The setup script safely inserts guest `iptables` allowances for TCP 80, TCP 43380 and UDP 43379 ahead of OCI Ubuntu's default REJECT rules, without flushing the firewall or altering SSH access. If `/etc/iptables/rules.v4` exists it saves the updated policy with a backup; otherwise, review persistence after reboot. If UFW or nftables is also actively filtering these ports, permit them in that layer too. **Do not globally disable the firewall or remove SSH rules.** <https://blogs.oracle.com/developers/enabling-network-traffic-to-ubuntu-images-in-oracle-cloud-infrastructure>
 
 ## 3. Configure a DNS hostname
 
