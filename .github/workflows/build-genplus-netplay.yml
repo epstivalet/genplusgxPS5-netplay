@@ -3,7 +3,7 @@ name: Build Genesis Plus GX PS5 - Netplay Prototype
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, feature/native-internet-p2p]
     paths:
       - '.github/workflows/build-genplus-netplay.yml'
       - 'GenesisPlusGXPS5-Netplay-v0.4-GitHub-Build/genplusgx-netplay-kit/**'
@@ -38,6 +38,8 @@ jobs:
           test -f "$KIT_DIR/apply_to_upstream.py" || { echo "::error::Missing source integration script at $KIT_DIR"; exit 1; }
           test -f "$KIT_DIR/netplay/fe_netplay.cpp"
           test -f "$KIT_DIR/netplay/fe_netplay_tls.cpp"
+          test -f "$KIT_DIR/netplay/fe_p2p_probe.cpp"
+          test -f "$KIT_DIR/netplay/rendezvous.py"
           test -f "$KIT_DIR/tests/test_netplay.py"
           test -f upstream/ps5/Makefile
 
@@ -60,6 +62,7 @@ jobs:
         run: |
           cd "$KIT_DIR"
           g++ -std=c++17 -Wall -Wextra -Werror -Inetplay netplay/fe_netplay.cpp tests/netplay_client_smoke.cpp -o tests/netplay_client_smoke
+          g++ -std=c++17 -Wall -Wextra -Werror -Inetplay netplay/fe_p2p_probe.cpp tests/p2p_probe_smoke.cpp -o tests/p2p_probe_smoke
           python3 -m unittest discover -s tests -p 'test_netplay.py' -v
 
       - name: Compile host emulator
@@ -78,7 +81,7 @@ jobs:
       - name: Upload experimental ELF
         uses: actions/upload-artifact@v4
         with:
-          name: GenesisPlusGXPS5-Netplay-v0.4-Auto-P2P-Relay-prealpha-ELF
+          name: GenesisPlusGXPS5-Netplay-v0.6-Internet-Probe-EXPERIMENTAL-ELF
           path: upstream/ps5/build/ps5/GenesisPlusGXPS5.elf
           if-no-files-found: error
           retention-days: 14
