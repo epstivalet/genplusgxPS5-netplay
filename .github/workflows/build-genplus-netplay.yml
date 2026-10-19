@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/build-genplus-netplay.yml'
       - 'GenesisPlusGXPS5-Netplay-v0.4-GitHub-Build/genplusgx-netplay-kit/**'
+      - 'deploy/oracle/**'
 
 permissions:
   contents: read
@@ -42,6 +43,9 @@ jobs:
           test -f "$KIT_DIR/netplay/rendezvous.py"
           test -f "$KIT_DIR/tests/test_netplay.py"
           test -f upstream/ps5/Makefile
+
+      - name: Validate Oracle VM installer syntax
+        run: bash -n deploy/oracle/setup-ubuntu.sh
 
       - name: Install host and PS5 build prerequisites
         run: |
