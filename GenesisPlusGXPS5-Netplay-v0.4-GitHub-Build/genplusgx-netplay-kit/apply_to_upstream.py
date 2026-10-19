@@ -96,9 +96,9 @@ patch('ps5/frontend/fe_menu.cpp', [
      '\t\tcase H_NETPLAY: return {"NETPLAY (TEST BUILD)", "", true, true};\n'
      '\t\tcase S_NETPLAY_MODE: return {"Online play", c.netplay_mode == 1 ? "Host" : c.netplay_mode == 2 ? "Join" : "Off"};\n'
      '\t\tcase S_NETPLAY_CONNECTION_TYPE: return {"Connection type", c.netplay_connection_type == 0 ? "Relay (TLS)" : c.netplay_connection_type == 1 ? "Direct P2P (test)" : "Automatic (test)"};\n'
-     '\t\tcase S_NETPLAY_ROOM: return {"Room (edit .ini over FTP)", c.netplay_room.empty() ? "Not set" : c.netplay_room};\n'
-     '\t\tcase S_NETPLAY_RELAY: return {"Relay (edit .ini over FTP)", c.netplay_host, c.netplay_connection_type != 1};\n'
-     '\t\tcase S_NETPLAY_DIRECT_HOST: return {"Host IP (edit .ini over FTP)", c.netplay_direct_host, c.netplay_connection_type != 0};\n'
+     '\t\tcase S_NETPLAY_ROOM: return {"Room code (Cross to edit)", NetplayPreview(c.netplay_room)};\n'
+     '\t\tcase S_NETPLAY_RELAY: return {"Relay host (Cross to edit)", NetplayPreview(c.netplay_host), c.netplay_connection_type != 1};\n'
+     '\t\tcase S_NETPLAY_DIRECT_HOST: return {"Direct host (Cross to edit)", NetplayPreview(c.netplay_direct_host), c.netplay_connection_type != 0};\n'
      '\t\tcase S_NETPLAY_DIRECT_PORT: snprintf(buf, sizeof(buf), "%d", c.netplay_direct_port); return {"Direct TCP port", buf, c.netplay_connection_type != 0};\n'
      '\t\tcase H_LIBRARY: return {"LIBRARY", "", true, true};'),
     ('\t\tcase S_COVERS: c.covers_download = !c.covers_download; break;',
@@ -115,6 +115,101 @@ patch('ps5/frontend/fe_menu.cpp', [
     ('void UpdateAction()\n{',
      'void UpdateAction()\n{\n    return; // Never install official emulator updates into this development title.'),
 ])
+
+# Controller-operated netplay field editor: eliminates FTP as a prerequisite for
+# initial setup. Uses the frontend's existing gamepad reader/drawing primitives.
+patch('ps5/frontend/fe_menu.cpp', [
+        ('Row SettingRowFor(int s)\n{', 'std::string NetplayPreview(const std::string& text);\n\nRow SettingRowFor(int s)\n{'),
+    ('void SettingsScreen(bool over_game)\n{',
+     '''// Compact controller keyboard; local configuration, no network text input.
+std::string NetplayPreview(const std::string& text)
+{
+    if (text.empty()) return "Not set";
+    return text.size() <= 23 ? text : text.substr(0, 20) + "...";
+}
+
+bool EditNetplayField(const char* title, std::string& value, bool room)
+{
+    const std::string alphabet =
+        room ? "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" :
+               "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.-";
+    const int columns = 10;
+    const int key_count = int(alphabet.size()) + 2; // Delete, Done
+    const size_t max_len = room ? 32 : 120;
+    std::string entered = value;
+    int selected = 0;
+    NavReader nav;
+    for (;;)
+    {
+        Header(title);
+        ps5video::FillRect(160, 225, W - 320, 80, kPanel);
+        DrawText(185, 244, FitText(entered.empty() ? std::string("(empty)") : entered, 3, W - 400).c_str(),
+                 3, entered.empty() ? kDim : kText);
+        for (int i = 0; i < key_count; ++i)
+        {
+            const int x = 290 + (i % columns) * 135;
+            const int y = 345 + (i / columns) * 66;
+            const bool active = selected == i;
+            ps5video::FillRect(x, y, 125, 56, active ? kSel : kPanel);
+            std::string label;
+            if (i == int(alphabet.size())) label = "DEL";
+            else if (i == int(alphabet.size()) + 1) label = "DONE";
+            else label = std::string(1, alphabet[size_t(i)]);
+            DrawText(x + (125 - TextWidth(label.c_str(), 3)) / 2, y + 9, label.c_str(), 3,
+                     active ? kText : kAccent);
+        }
+        Footer(std::string(icon::Cross) + " Add/Done    " + icon::Circle +
+               " Delete    OPTIONS Save    L3+R3 Cancel");
+        Present();
+        const Nav n = nav.Read();
+        if (n.left) selected = (selected + key_count - 1) % key_count;
+        if (n.right) selected = (selected + 1) % key_count;
+        if (n.up && selected >= columns) selected -= columns;
+        if (n.down && selected + columns < key_count) selected += columns;
+        if (n.back && !entered.empty()) entered.pop_back();
+        if (n.menu) return false; // cancel, do not overwrite
+        if (n.options)
+        {
+            value = entered;
+            return true;
+        }
+        if (n.ok)
+        {
+            if (selected < int(alphabet.size()))
+            {
+                if (entered.size() < max_len) entered.push_back(alphabet[size_t(selected)]);
+            }
+            else if (selected == int(alphabet.size()))
+            {
+                if (!entered.empty()) entered.pop_back();
+            }
+            else
+            {
+                value = entered;
+                return true;
+            }
+        }
+    }
+}
+
+void SettingsScreen(bool over_game)
+{'''),
+    ('\t\telse if (sel < S_COUNT && (n.left || n.right || n.ok))\n\t\t\tChangeSetting(sel, n.left ? -1 : 1);',
+     '''        else if (n.ok && (sel == S_NETPLAY_ROOM || sel == S_NETPLAY_RELAY || sel == S_NETPLAY_DIRECT_HOST))
+        {
+            Settings& c = Config();
+            std::string& target = sel == S_NETPLAY_ROOM ? c.netplay_room :
+                (sel == S_NETPLAY_RELAY ? c.netplay_host : c.netplay_direct_host);
+            const char* title = sel == S_NETPLAY_ROOM ? "Netplay room code" :
+                (sel == S_NETPLAY_RELAY ? "TLS relay DNS hostname" : "Direct host IPv4 / hostname");
+            if (EditNetplayField(title, target, sel == S_NETPLAY_ROOM))
+                c.Save();
+            nav = NavReader(); // reset input repeat after returning from keyboard
+        }
+        else if (sel < S_COUNT && (n.left || n.right || n.ok))
+            ChangeSetting(sel, n.left ? -1 : 1);'''),
+])
+
 patch('ps5/frontend/fe_emu.h', [
     ('bool GameLoaded();', 'bool GameLoaded();\n// GN1 prototype: call after loading the ROM, before the first emulated frame.\nbool NetplayBegin(std::string* error);'),
 ])
