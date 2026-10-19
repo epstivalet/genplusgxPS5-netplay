@@ -138,8 +138,9 @@ class ProbeServer(asyncio.DatagramProtocol):
                 except (ConnectionError, OSError):
                     pass
         finally:
-            if room is not None:
-                # A room ends if either peer disconnects; no orphaned tokens.
+            if room is not None and peer is not None:
+                # Only a registered peer can expire the room. A duplicate or
+                # mismatched third-party join must not kill a valid session.
                 self.remove(room)
             writer.close()
             try:
